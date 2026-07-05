@@ -148,6 +148,13 @@ export function FeedPage() {
                 </li>
               </ul>
               <div className="_header_nav_profile">
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  className="btn btn-outline-danger btn-sm me-3"
+                >
+                  Logout
+                </button>
                 <div className="_header_nav_profile_image">
                   <img src="/assets/images/profile.png" alt="Image" className="_nav_profile_img" />
                 </div>
