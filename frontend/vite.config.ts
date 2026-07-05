@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const apiTarget = process.env.VITE_API_PROXY_TARGET ?? 'https://localhost:7247/';
+const apiTarget = process.env.VITE_API_PROXY_TARGET ?? 'https://socialmedia-backend-r69i.onrender.com/';
 
 export default defineConfig({
   plugins: [react()],
