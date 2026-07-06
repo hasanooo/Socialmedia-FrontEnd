@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { commentsApi } from '../api/comments';
 import { CommentComposer } from './CommentComposer';
 import { LikeButton } from './LikeButton';
 import { LikedByModal } from './LikedByModal';
-import type { Comment } from '../types';
+import { addReplyToTree, bumpFeedCommentCount } from '../hooks/commentCache';
+import type { Comment, CommentPage } from '../types';
 
 function timeAgo(iso: string) {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -23,9 +24,15 @@ export function CommentItem({ comment, postId, isReply = false }: { comment: Com
 
   const createReply = useMutation({
     mutationFn: (content: string) => commentsApi.create(postId, content, comment.id),
-    onSuccess: () => {
+    onSuccess: (newReply) => {
       setReplying(false);
-      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
+      // Insert the created reply straight from this response instead of invalidating
+      // ['comments', postId] — that would re-issue a GET for the whole thread on every reply.
+      queryClient.setQueryData<InfiniteData<CommentPage>>(['comments', postId], (old) => {
+        if (!old) return old;
+        return { ...old, pages: old.pages.map((page) => ({ ...page, items: addReplyToTree(page.items, comment.id, newReply) })) };
+      });
+      bumpFeedCommentCount(queryClient, postId);
     },
   });
 

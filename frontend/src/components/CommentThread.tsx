@@ -1,7 +1,9 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { commentsApi } from '../api/comments';
 import { CommentComposer } from './CommentComposer';
 import { CommentItem } from './CommentItem';
+import { bumpFeedCommentCount } from '../hooks/commentCache';
+import type { CommentPage } from '../types';
 
 export function CommentThread({ postId }: { postId: string }) {
   const queryClient = useQueryClient();
@@ -15,7 +17,16 @@ export function CommentThread({ postId }: { postId: string }) {
 
   const createComment = useMutation({
     mutationFn: (content: string) => commentsApi.create(postId, content, null),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comments', postId] }),
+    onSuccess: (newComment) => {
+      // Insert the created comment straight from this response instead of invalidating
+      // ['comments', postId] — that would re-issue a GET for the whole thread on every comment.
+      queryClient.setQueryData<InfiniteData<CommentPage>>(['comments', postId], (old) => {
+        if (!old) return old;
+        const [firstPage, ...rest] = old.pages;
+        return { ...old, pages: [{ ...firstPage, items: [...firstPage.items, newComment] }, ...rest] };
+      });
+      bumpFeedCommentCount(queryClient, postId);
+    },
   });
 
   const comments = query.data?.pages.flatMap((p) => p.items) ?? [];
