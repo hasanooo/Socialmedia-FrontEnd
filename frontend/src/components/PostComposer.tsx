@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { postsApi } from '../api/posts';
-import type { Visibility } from '../types';
+import type { FeedPage, Visibility } from '../types';
 
 export function PostComposer() {
   const [content, setContent] = useState('');
@@ -12,12 +12,20 @@ export function PostComposer() {
 
   const createPost = useMutation({
     mutationFn: postsApi.create,
-    onSuccess: () => {
+    onSuccess: (newPost) => {
       setContent('');
       setVisibility('Public');
       setImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
+
+      // Insert the created post straight from this response into the cache instead of
+      // invalidating ['feed'] — that would re-issue a GET to every client's feed query
+      // for a single post creation. Other users pick it up on their next natural refetch.
+      queryClient.setQueryData<InfiniteData<FeedPage>>(['feed'], (old) => {
+        if (!old) return old;
+        const [firstPage, ...rest] = old.pages;
+        return { ...old, pages: [{ ...firstPage, items: [newPost, ...firstPage.items] }, ...rest] };
+      });
     },
   });
 

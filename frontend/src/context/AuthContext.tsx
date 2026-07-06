@@ -61,6 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 function extractError(error: unknown): string | null {
   if (!error) return null;
   const anyError = error as { response?: { data?: { error?: string; errors?: string[] } } };
+
+  if (!anyError.response) {
+    return 'The server is waking up from idle — please try again in a few seconds.';
+  }
+
   return anyError.response?.data?.error ?? anyError.response?.data?.errors?.[0] ?? 'Something went wrong.';
 }
 

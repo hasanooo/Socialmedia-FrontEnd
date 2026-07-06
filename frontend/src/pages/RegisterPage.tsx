@@ -13,6 +13,7 @@ export function RegisterPage() {
   const [agreed, setAgreed] = useState(false);
   const [passwordMismatch, setPasswordMismatch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showSlowHint, setShowSlowHint] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -24,12 +25,15 @@ export function RegisterPage() {
     setPasswordMismatch(false);
 
     setSubmitting(true);
+    const slowHintTimer = setTimeout(() => setShowSlowHint(true), 5000);
     try {
       await register({ firstName, lastName, email, password });
       navigate('/feed');
     } catch {
       // error surfaced via registerError
     } finally {
+      clearTimeout(slowHintTimer);
+      setShowSlowHint(false);
       setSubmitting(false);
     }
   }
@@ -157,6 +161,11 @@ export function RegisterPage() {
                   </div>
 
                   {passwordMismatch && <p className="text-danger mt-2">Passwords do not match.</p>}
+                  {showSlowHint && !registerError && (
+                    <p className="mt-2">
+                      This is taking longer than usual — the server may be waking up from idle. Please wait…
+                    </p>
+                  )}
                   {registerError && <p className="text-danger mt-2">{registerError}</p>}
 
                   <div className="row">

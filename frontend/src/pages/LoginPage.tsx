@@ -9,16 +9,20 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showSlowHint, setShowSlowHint] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    const slowHintTimer = setTimeout(() => setShowSlowHint(true), 5000);
     try {
       await login({ email, password });
       navigate('/feed');
     } catch {
       // error surfaced via loginError
     } finally {
+      clearTimeout(slowHintTimer);
+      setShowSlowHint(false);
       setSubmitting(false);
     }
   }
@@ -109,6 +113,11 @@ export function LoginPage() {
                     </div>
                   </div>
 
+                  {showSlowHint && !loginError && (
+                    <p className="mt-2">
+                      This is taking longer than usual — the server may be waking up from idle. Please wait…
+                    </p>
+                  )}
                   {loginError && <p className="text-danger mt-2">{loginError}</p>}
 
                   <div className="row">

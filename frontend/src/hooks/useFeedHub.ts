@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as signalR from '@microsoft/signalr';
-import { useQueryClient } from '@tanstack/react-query';
-import type { Comment, FeedPage } from '../types';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import type { Comment, CommentPage, FeedPage } from '../types';
 
 interface LikeChangedPayload {
   type: 'Post' | 'Comment';
@@ -30,40 +30,43 @@ export function useFeedHub(currentUserId: string | undefined) {
 
     connection.on('LikeChanged', (payload: LikeChangedPayload) => {
       if (payload.type === 'Post') {
-        queryClient.setQueriesData<FeedPage>({ queryKey: ['feed'] }, (old) => {
+        queryClient.setQueriesData<InfiniteData<FeedPage>>({ queryKey: ['feed'] }, (old) => {
           if (!old) return old;
           return {
             ...old,
-            items: old.items.map((p) => (p.id === payload.id ? { ...p, likeCount: payload.likeCount } : p)),
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.map((p) => (p.id === payload.id ? { ...p, likeCount: payload.likeCount } : p)),
+            })),
           };
         });
       } else {
-        queryClient.setQueriesData<{ items: Comment[]; nextCursor: string | null }>(
-          { queryKey: ['comments'] },
-          (old) => {
-            if (!old) return old;
-            const patch = (comments: Comment[]): Comment[] =>
-              comments.map((c) =>
-                c.id === payload.id
-                  ? { ...c, likeCount: payload.likeCount }
-                  : { ...c, replies: patch(c.replies) },
-              );
-            return { ...old, items: patch(old.items) };
-          },
-        );
+        queryClient.setQueriesData<InfiniteData<CommentPage>>({ queryKey: ['comments'] }, (old) => {
+          if (!old) return old;
+          const patch = (comments: Comment[]): Comment[] =>
+            comments.map((c) =>
+              c.id === payload.id
+                ? { ...c, likeCount: payload.likeCount }
+                : { ...c, replies: patch(c.replies) },
+            );
+          return { ...old, pages: old.pages.map((page) => ({ ...page, items: patch(page.items) })) };
+        });
       }
     });
 
     connection.on('CommentAdded', (payload: CommentAddedPayload) => {
       if (payload.comment.author.id === currentUserId) return; // already applied optimistically
       queryClient.invalidateQueries({ queryKey: ['comments', payload.postId] });
-      queryClient.setQueriesData<FeedPage>({ queryKey: ['feed'] }, (old) => {
+      queryClient.setQueriesData<InfiniteData<FeedPage>>({ queryKey: ['feed'] }, (old) => {
         if (!old) return old;
         return {
           ...old,
-          items: old.items.map((p) =>
-            p.id === payload.postId ? { ...p, commentCount: p.commentCount + 1 } : p,
-          ),
+          pages: old.pages.map((page) => ({
+            ...page,
+            items: page.items.map((p) =>
+              p.id === payload.postId ? { ...p, commentCount: p.commentCount + 1 } : p,
+            ),
+          })),
         };
       });
     });

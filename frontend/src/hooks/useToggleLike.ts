@@ -1,6 +1,6 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { likesApi } from '../api/likes';
-import type { Comment, FeedPage, LikeableType, ToggleLikeResult } from '../types';
+import type { Comment, CommentPage, FeedPage, LikeableType, ToggleLikeResult } from '../types';
 
 function patchCommentTree(comments: Comment[], id: string, apply: (c: Comment) => Comment): Comment[] {
   return comments.map((c) => (c.id === id ? apply(c) : { ...c, replies: patchCommentTree(c.replies, id, apply) }));
@@ -15,54 +15,62 @@ export function useToggleLike() {
 
     onMutate: async ({ likeableType, likeableId }) => {
       if (likeableType === 'Post') {
-        queryClient.setQueriesData<FeedPage>({ queryKey: ['feed'] }, (old) =>
+        queryClient.setQueriesData<InfiniteData<FeedPage>>({ queryKey: ['feed'] }, (old) =>
           old && {
             ...old,
-            items: old.items.map((p) =>
-              p.id === likeableId
-                ? { ...p, likedByCurrentUser: !p.likedByCurrentUser, likeCount: p.likeCount + (p.likedByCurrentUser ? -1 : 1) }
-                : p,
-            ),
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.map((p) =>
+                p.id === likeableId
+                  ? { ...p, likedByCurrentUser: !p.likedByCurrentUser, likeCount: p.likeCount + (p.likedByCurrentUser ? -1 : 1) }
+                  : p,
+              ),
+            })),
           },
         );
       } else {
-        queryClient.setQueriesData<{ items: Comment[]; nextCursor: string | null }>(
-          { queryKey: ['comments'] },
-          (old) =>
-            old && {
-              ...old,
-              items: patchCommentTree(old.items, likeableId, (c) => ({
+        queryClient.setQueriesData<InfiniteData<CommentPage>>({ queryKey: ['comments'] }, (old) =>
+          old && {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: patchCommentTree(page.items, likeableId, (c) => ({
                 ...c,
                 likedByCurrentUser: !c.likedByCurrentUser,
                 likeCount: c.likeCount + (c.likedByCurrentUser ? -1 : 1),
               })),
-            },
+            })),
+          },
         );
       }
     },
 
     onSuccess: (result: ToggleLikeResult, { likeableType, likeableId }) => {
       if (likeableType === 'Post') {
-        queryClient.setQueriesData<FeedPage>({ queryKey: ['feed'] }, (old) =>
+        queryClient.setQueriesData<InfiniteData<FeedPage>>({ queryKey: ['feed'] }, (old) =>
           old && {
             ...old,
-            items: old.items.map((p) =>
-              p.id === likeableId ? { ...p, likedByCurrentUser: result.liked, likeCount: result.likeCount } : p,
-            ),
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.map((p) =>
+                p.id === likeableId ? { ...p, likedByCurrentUser: result.liked, likeCount: result.likeCount } : p,
+              ),
+            })),
           },
         );
       } else {
-        queryClient.setQueriesData<{ items: Comment[]; nextCursor: string | null }>(
-          { queryKey: ['comments'] },
-          (old) =>
-            old && {
-              ...old,
-              items: patchCommentTree(old.items, likeableId, (c) => ({
+        queryClient.setQueriesData<InfiniteData<CommentPage>>({ queryKey: ['comments'] }, (old) =>
+          old && {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: patchCommentTree(page.items, likeableId, (c) => ({
                 ...c,
                 likedByCurrentUser: result.liked,
                 likeCount: result.likeCount,
               })),
-            },
+            })),
+          },
         );
       }
     },
